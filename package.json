@@ -1,0 +1,17 @@
+{
+  "name": "content-review-workbench",
+  "version": "0.1.0",
+  "description": "AI 内容审稿工作台 —— AI 生成初稿、人工三态审稿、AI 腔检测、公众号导出、数据回填与周报的自托管轻量内容产线",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --experimental-sqlite server.js",
+    "test": "node --experimental-sqlite --test tests/"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
