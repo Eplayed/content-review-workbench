@@ -7,6 +7,8 @@
 const express = require('express');
 const { db, now, today } = require('./db');
 const { detectAiStyle } = require('./detector');
+const { parseMaterialsCsv } = require('./csv');
+const { buildBackup, restoreBackup } = require('./backup');
 const { buildWechatHtml } = require('./md2html');
 
 const CHECKLIST_ITEMS = ['事实核查', '数字校验', 'AI 标注就位', '人工增量'];
@@ -39,7 +41,9 @@ router.get('/bootstrap', (req, res) => {
   const arts = db.prepare('SELECT * FROM articles WHERE deleted=0 ORDER BY created_at DESC, id DESC').all().map(rowArt);
   const mx = db.prepare('SELECT * FROM metrics ORDER BY recorded_at DESC, id DESC').all().map(rowMx);
   const c = aiConfig();
-  res.json({ mats, arts, mx, ai: { base: c.base || '', model: c.model || '', configured: !!(c.base && c.model && c.key) }, options: CHANNELS, checklistItems: CHECKLIST_ITEMS });
+  let disabled = [];
+  try { disabled = JSON.parse(getSetting('detector_disabled', '[]') || '[]'); } catch (e) { disabled = []; }
+  res.json({ mats, arts, mx, ai: { base: c.base || '', model: c.model || '', configured: !!(c.base && c.model && c.key) }, options: CHANNELS, checklistItems: CHECKLIST_ITEMS, detector: Array.isArray(disabled) ? disabled : [] });
 });
 
 /* ---------- 素材 ---------- */
@@ -57,6 +61,22 @@ router.post('/materials', (req, res) => {
 router.delete('/materials/:id', (req, res) => {
   db.prepare('UPDATE materials SET deleted=1 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+router.post('/materials/import', (req, res) => {
+  const { csv } = req.body || {};
+  if (!csv) return res.status(400).json({ error: '缺少 CSV 内容' });
+  const { rows, skipped } = parseMaterialsCsv(csv);
+  if (!rows.length) return res.status(400).json({ error: '没有可导入的行：每行需包含标题和正文' });
+  const ins = db.prepare('INSERT INTO materials(title,content,tags,source_type,created_at) VALUES(?,?,?,?,?)');
+  db.exec('BEGIN');
+  try {
+    for (const r of rows) ins.run(r.title, r.content, r.tags, 'csv', today());
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ error: '导入失败：' + e.message });
+  }
+  res.status(201).json({ imported: rows.length, skipped });
 });
 
 /* ---------- 文章（三态流转核心） ---------- */
@@ -239,6 +259,23 @@ router.post('/generate', async (req, res) => {
     clearTimeout(timer);
     const msg = e.name === 'AbortError' ? '生成超时（120s）' : '网络异常或地址不可达';
     return res.status(502).json({ error: '生成失败：' + msg });
+  }
+});
+
+/* ---------- 备份 / 恢复 ---------- */
+router.get('/backup', (req, res) => {
+  const payload = buildBackup(db, now());
+  res.set('Content-Type', 'application/json; charset=utf-8');
+  res.set('Content-Disposition', 'attachment; filename="workbench-backup-' + today() + '.json"');
+  res.send(JSON.stringify(payload, null, 2));
+});
+router.post('/backup/restore', (req, res) => {
+  try {
+    const body = req.body || {};
+    const counts = restoreBackup(db, body.payload || body, now(), today());
+    res.json({ ok: true, restored: counts });
+  } catch (e) {
+    res.status(400).json({ error: e.message || '恢复失败' });
   }
 });
 

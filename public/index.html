@@ -234,7 +234,7 @@ hr.sep{border:none;border-top:1px dashed var(--line2);margin:14px 0}
           <div class="fgroup"><label for="mat_tags">标签（逗号分隔）</label><input class="inp" id="mat_tags" name="mat_tags" placeholder="AI, 工作流"></div>
         </div>
         <div class="fgroup"><label for="mat_content">素材正文</label><textarea class="inp" id="mat_content" name="mat_content" placeholder="粘贴原始素材：访谈记录、笔记、链接摘要、用户原声……" required></textarea></div>
-        <div class="row"><button type="submit" class="btn primary" id="matSubmit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>存入素材库</button></div>
+        <div class="row"><button type="submit" class="btn primary" id="matSubmit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>存入素材库</button><button type="button" class="btn" id="btnCsv">导入 CSV</button><input type="file" id="csvFile" accept=".csv,text/csv" hidden><span class="meta" id="csvStatus"></span></div>
       </form>
     </div>
     <div class="sect-title">素材列表 <span class="n" id="matCount">0</span></div>
@@ -288,7 +288,7 @@ hr.sep{border:none;border-top:1px dashed var(--line2);margin:14px 0}
   <!-- ④ 复盘台 -->
   <section class="panel" id="panel-analytics">
     <div class="card">
-      <div class="sect-title">本周周报 <span class="meta" id="weekRange"></span></div>
+      <div class="sect-title">本周周报 <span class="meta" id="weekRange"></span><button type="button" class="btn ghost sm" id="btnWeekExport" style="margin-left:auto">导出周报 HTML</button></div>
       <div class="kpis">
         <div class="kpi"><b id="kpiOut">0</b><span>本周产量</span><span class="delta" id="kpiOutDelta"></span></div>
         <div class="kpi"><b id="kpiPub">0</b><span>本周已发</span><span class="delta" id="kpiPubDelta"></span></div>
@@ -363,7 +363,14 @@ hr.sep{border:none;border-top:1px dashed var(--line2);margin:14px 0}
     <div class="fgroup"><label for="set_model">模型</label><input class="inp" id="set_model" placeholder="例：gpt-4o-mini / deepseek-chat"></div>
     <div class="fgroup"><label for="set_key">API Key</label><input class="inp" id="set_key" type="password" data-no-cache="1" placeholder="sk-…（仅存本机 localStorage，不上传）"></div>
     <div class="row"><button class="btn sm" id="btnSaveAi">保存配置</button><button class="btn sm" id="btnTestAi">测试连接</button><span class="meta" id="aiTestResult"></span></div>
-    <div class="hint meta" style="margin-top:8px">Key 只存在本机浏览器 localStorage，不会同步到资料库，也不会打进日志。</div>
+    <div class="hint meta" style="margin-top:8px">Key 只存服务端 settings 表（本机 SQLite），不返回前端、不打日志。</div>
+    <hr class="sep">
+    <div class="sect-title">AI 腔检测规则开关</div>
+    <div class="row" id="detectorToggles">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" data-dr="contrast" checked>对比修辞</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" data-dr="textbook" checked>教科书小标题</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" data-dr="filler" checked>车轱辘词</label>
+    </div>
     <hr class="sep">
     <div class="sect-title">示例数据</div>
     <div class="row"><button class="btn sm" id="btnSeed">载入示例数据</button><button class="btn sm danger" id="btnClearSeed">清空示例数据</button></div>
@@ -425,7 +432,7 @@ function renderMarkdown(md){
 }
 
 /* ================= 状态与 API 数据层 ================= */
-var state={mats:[],arts:[],mx:[],options:['公众号','头条','小红书'],checklistItems:['事实核查','数字校验','AI 标注就位','人工增量'],ai:{base:'',model:'',configured:false},filter:'all',curArt:null,findings:[],genDraft:null,busy:false,mode:'server'};
+var state={mats:[],arts:[],mx:[],options:['公众号','头条','小红书'],checklistItems:['事实核查','数字校验','AI 标注就位','人工增量'],ai:{base:'',model:'',configured:false},filter:'all',curArt:null,findings:[],genDraft:null,detectorDisabled:[],busy:false,mode:'server'};
 var ST_EN={待审:'pending',已审:'reviewed',已发:'published'};
 var ST_CN={pending:'待审',reviewed:'已审',published:'已发'};
 function lsGet(k,def){try{var v=localStorage.getItem(P+k);return v==null?def:JSON.parse(v);}catch(e){return def;}}
@@ -437,7 +444,7 @@ function nMx(r){return{id:r.id,aid:r.article_id,views:Number(r.views||0),likes:N
 function applyBootstrap(b){state.mats=(b.mats||[]).map(nMat);state.arts=(b.arts||[]).map(nArt);state.mx=(b.mx||[]).map(nMx);
   if(b.options&&b.options.length)state.options=b.options;
   if(b.checklistItems&&b.checklistItems.length)state.checklistItems=b.checklistItems;
-  if(b.ai)state.ai=b.ai;}
+  if(b.ai)state.ai=b.ai;if(b.detector)state.detectorDisabled=b.detector;}
 var Store={
   init:function(){return api('/bootstrap').then(function(b){state.mode='server';applyBootstrap(b);});},
   reload:function(){state.busy=true;renderSync();return api('/bootstrap').then(function(b){applyBootstrap(b);state.busy=false;renderSync();}).catch(function(e){state.busy=false;renderSync();throw e;});},
@@ -460,7 +467,11 @@ var Store={
   exportHtml:function(id){return fetch('/api/articles/'+id+'/export').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();});},
   saveAi:function(cfg){return api('/settings/ai',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(function(r){state.ai=r;return r;});},
   testAi:function(){return api('/settings/ai/test',{method:'POST'});},
-  generate:function(mId,type,title){return api('/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({material_id:Number(mId),type:type,title:title||''})});}
+  generate:function(mId,type,title){return api('/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({material_id:Number(mId),type:type,title:title||''})});},
+  importCsv:function(text){return api('/materials/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:text})}).then(function(){return Store.reload();});},
+  getBackup:function(){return fetch('/api/backup').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();});},
+  restore:function(payload){return api('/backup/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payload:payload})}).then(function(){return Store.reload();});},
+  saveDetector:function(disabled){return api('/settings/detector',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({disabled:disabled})});}
 };
 
 /* ================= 计算层 ================= */
@@ -610,6 +621,30 @@ function bindFormCache(form){var key='form_'+form.id,els=form.querySelectorAll('
       o[e2.name]=e2.value;}lsSet(key,o);},300);
   form.addEventListener('input',save);
   form.addEventListener('submit',function(){try{localStorage.removeItem(P+key);}catch(e){}});}
+/* ================= 检测规则开关 / 周报导出 ================= */
+function syncDetectorToggles(){var boxes=document.querySelectorAll('#detectorToggles input[data-dr]'),i;
+  for(i=0;i<boxes.length;i++){boxes[i].checked=state.detectorDisabled.indexOf(boxes[i].getAttribute('data-dr'))<0;}}
+function onDetectorToggle(){var boxes=document.querySelectorAll('#detectorToggles input[data-dr]'),disabled=[],i;
+  for(i=0;i<boxes.length;i++){if(!boxes[i].checked)disabled.push(boxes[i].getAttribute('data-dr'));}
+  state.detectorDisabled=disabled;
+  Store.saveDetector(disabled).then(function(){toast('检测规则已更新');},function(e){toast(e.message,true);});}
+function buildWeeklyHtml(){
+  var w=computeWeekly();
+  var h='<h2 style="margin:24px 0 10px;font-size:18px">三态分布</h2>';
+  var dist=[['待审',w.dist.p],['已审',w.dist.r],['已发',w.dist.b]],i;
+  for(i=0;i<dist.length;i++){h+='<p style="margin:6px 0">'+dist[i][0]+'：'+dist[i][1]+' 篇</p>';}
+  var list=state.arts.filter(function(a){return inRange(a.created,w.ws,w.we);});
+  h+='<h2 style="margin:24px 0 10px;font-size:18px">本周文章</h2>';
+  if(!list.length){h+='<p style="margin:6px 0;color:#6b7280">本周暂无新增。</p>';}
+  else{for(i=0;i<list.length;i++){h+='<p style="margin:6px 0">'+(i+1)+'. '+esc(list[i].title)+'（'+list[i].state+(list[i].published?'，'+fmtCN(list[i].published):'')+'）</p>';}}
+  return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>内容周报</title></head><body><section style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;font-size:15px;color:#3f3f3f;line-height:1.75;padding:20px 10px;max-width:640px;margin:0 auto"><h1 style="font-size:22px;margin:0 0 4px">内容周报</h1><p style="margin:0 0 18px;color:#9ca3af;font-size:13px">'+fmtCN(w.ws)+' – '+fmtCN(addDays(w.we,-1))+'</p>'+
+    '<h2 style="margin:24px 0 10px;font-size:18px">关键指标</h2>'+
+    '<p style="margin:6px 0">本周产量：<b>'+w.outThis+'</b> 篇'+(w.outLast?'（上周 '+w.outLast+'）':'')+'</p>'+
+    '<p style="margin:6px 0">本周已发：<b>'+w.pubThis+'</b> 篇'+(w.pubLast?'（上周 '+w.pubLast+'）':'')+'</p>'+
+    '<p style="margin:6px 0">待审积压：<b>'+w.pend+'</b> 篇</p>'+
+    '<p style="margin:6px 0">本周中位阅读：<b>'+(w.median==null?'–':w.median)+'</b></p>'+h+
+    '<p style="margin-top:28px;font-size:12px;color:#9ca3af;text-align:center">由 AI 内容审稿工作台生成</p></section></body></html>';}
+
 /* ================= 事件绑定与初始化 ================= */
 function switchTab(name){var tabs=document.querySelectorAll('.tab'),i;
   for(i=0;i<tabs.length;i++){tabs[i].classList.toggle('active',tabs[i].getAttribute('data-tab')===name);}
@@ -691,14 +726,30 @@ function bindEvents(){
     Store.seed().then(function(){refreshAll();toast('示例数据已载入');}).catch(function(e){toast(e.message,true);});});});
   $('btnClearSeed').addEventListener('click',function(){askConfirm('清空示例数据？','将删除之前载入的示例记录。',function(){
     Store.clearSeed().then(function(){refreshAll();toast('示例数据已清空');}).catch(function(e){toast(e.message,true);});});});
-  $('btnExport').addEventListener('click',function(){download('审稿工作台备份-'+todayStr()+'.json',JSON.stringify({exportedAt:new Date().toISOString(),mode:state.mode,mats:state.mats,arts:state.arts,mx:state.mx},null,2),'application/json;charset=utf-8');toast('备份已导出');});
-  $('btnImport').addEventListener('click',function(){toast('正式版数据在服务端 SQLite 中，导入恢复请用 data 目录备份文件替换',true);});
-  $('importFile').addEventListener('change',function(){this.value='';});
+  $('btnCsv').addEventListener('click',function(){$('csvFile').click();});
+  $('csvFile').addEventListener('change',function(){var f=this.files&&this.files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){var st=$('csvStatus');st.textContent='导入中…';
+      api('/materials/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:rd.result})})
+        .then(function(j){st.textContent='导入 '+j.imported+' 条'+(j.skipped?('，跳过 '+j.skipped):'');toast('CSV 导入完成');refreshAll();},
+              function(e){st.textContent='';toast(e.message,true);});};
+    rd.readAsText(f);this.value='';});
+  var dboxes=document.querySelectorAll('#detectorToggles input[data-dr]'),di;
+  for(di=0;di<dboxes.length;di++){dboxes[di].addEventListener('change',onDetectorToggle);}
+  $('btnExport').addEventListener('click',function(){Store.getBackup().then(function(t){download('审稿工作台备份-'+todayStr()+'.json',t,'application/json;charset=utf-8');toast('备份已导出');},function(e){toast('导出失败：'+e.message,true);});});
+  $('btnImport').addEventListener('click',function(){$('importFile').click();});
+  $('importFile').addEventListener('change',function(){var f=this.files&&this.files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){try{var payload=JSON.parse(rd.result);
+      askConfirm('恢复备份？','将整体替换当前素材、文章与回填数据（AI 配置保留）。',function(){
+        Store.restore(payload).then(function(){toast('恢复完成');refreshAll();},function(e){toast(e.message,true);});});}catch(e){toast('文件解析失败',true);}};
+    rd.readAsText(f);this.value='';});
+  $('btnWeekExport').addEventListener('click',function(){download('内容周报-'+todayStr()+'.html',buildWeeklyHtml(),'text/html;charset=utf-8');toast('周报已导出');});
   bindFormCache($('matForm'));bindFormCache($('manualForm'));bindFormCache($('mxForm'));
 }
 (function boot(){
   bindEvents();fillChannelSelects();$('mx_date').value=todayStr();
-  Store.init().then(function(){refreshAll();renderWriter();}).catch(function(){state.mode='offline';refreshAll();toast('后端服务未连接：请先运行 node server.js',true);});
+  Store.init().then(function(){refreshAll();renderWriter();syncDetectorToggles();}).catch(function(){state.mode='offline';refreshAll();toast('后端服务未连接：请先运行 node server.js',true);});
 })();
 })();
 </script>
