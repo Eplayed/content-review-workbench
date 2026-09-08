@@ -34,19 +34,25 @@
 
 ## 技术栈
 
-Node.js 20 · Express · better-sqlite3（SQLite 单文件）· 原生 HTML/CSS/JS（无构建步骤）· Docker
+Node.js ≥ 22.5（内置 `node:sqlite`，零原生编译依赖）· Express · SQLite 单文件 · 原生 HTML/CSS/JS（无构建步骤）· Docker
 
 ## 快速开始
 
-> 项目开发中，首个可用版本将随 M1 里程碑发布。
-
 ```bash
-# 方式一：Docker（推荐）
-docker compose up -d
+# 方式一：本地运行（需 Node.js ≥ 22.5）
+npm install
+npm start
+# 打开 http://localhost:3000
 
-# 方式二：本地运行
-node server.js
+# 方式二：Docker（推荐）
+docker compose up -d
+# 打开 http://localhost:3000
 ```
+
+- 数据存在本机 `data/workbench.db`（SQLite 单文件），Docker 部署请挂载 `data` 目录；端口用 `PORT` 环境变量改
+- AI 生成：设置抽屉里填 OpenAI 兼容接口（baseUrl / model / apiKey），Key 只存服务端 settings 表，不返回前端、不打日志
+- 首次使用：设置 → 载入示例数据，即可体验完整审稿闭环
+- 单元测试：`npm test`（AI 腔检测三条规则 + 公众号导出）
 
 ## 合规声明
 
