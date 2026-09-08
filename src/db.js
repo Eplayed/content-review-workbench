@@ -5,12 +5,8 @@ const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new DatabaseSync(path.join(DATA_DIR, 'workbench.db'));
-db.exec('PRAGMA journal_mode = WAL;');
-
-db.exec(`
+const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS materials (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
@@ -48,7 +44,18 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-`);
+`;
+
+/** 创建一个已建表的数据库实例（文件路径或 :memory:），供服务与测试共用 */
+function createDb(target) {
+  const db = new DatabaseSync(target);
+  if (target !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
+  db.exec(SCHEMA_SQL);
+  return db;
+}
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = createDb(path.join(DATA_DIR, 'workbench.db'));
 
 const now = () => new Date().toISOString();
 const today = () => {
@@ -56,4 +63,4 @@ const today = () => {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 };
 
-module.exports = { db, now, today };
+module.exports = { db, now, today, createDb };
