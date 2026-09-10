@@ -361,7 +361,7 @@ hr.sep{border:none;border-top:1px dashed var(--line2);margin:14px 0}
     <div class="sect-title">AI 接入（OpenAI 兼容）</div>
     <div class="fgroup"><label for="set_base">接口地址 baseUrl</label><input class="inp" id="set_base" data-no-cache="1" placeholder="https://api.example.com/v1"></div>
     <div class="fgroup"><label for="set_model">模型</label><input class="inp" id="set_model" placeholder="例：gpt-4o-mini / deepseek-chat"></div>
-    <div class="fgroup"><label for="set_key">API Key</label><input class="inp" id="set_key" type="password" data-no-cache="1" placeholder="sk-…（仅存本机 localStorage，不上传）"></div>
+    <div class="fgroup"><label for="set_key">API Key</label><input class="inp" id="set_key" type="password" data-no-cache="1" placeholder="sk-…（仅存本机数据库，不返回前端、不上传）"></div>
     <div class="row"><button class="btn sm" id="btnSaveAi">保存配置</button><button class="btn sm" id="btnTestAi">测试连接</button><span class="meta" id="aiTestResult"></span></div>
     <div class="hint meta" style="margin-top:8px">Key 只存服务端 settings 表（本机 SQLite），不返回前端、不打日志。</div>
     <hr class="sep">
@@ -494,7 +494,7 @@ function computeWeekly(){
     dist:{p:state.arts.filter(function(a){return a.state==='待审';}).length,r:state.arts.filter(function(a){return a.state==='已审';}).length,b:state.arts.filter(function(a){return a.state==='已发';}).length}};
 }
 function deltaHtml(cur,last){if(!last)return'';var d=cur-last;if(!d)return'<span class="delta">持平</span>';return d>0?'<span class="delta up">↑ 较上周 +'+d+'</span>':'<span class="delta down">↓ 较上周 '+d+'</span>';}
-function artById(id){var i;for(i=0;i<state.arts.length;i++){if(state.arts[i].id===id)return state.arts[i];}return null;}
+function artById(id){var i;for(i=0;i<state.arts.length;i++){if(String(state.arts[i].id)===String(id))return state.arts[i];}return null;}
 function parseCl(s){try{var v=JSON.parse(s||'[]');return v instanceof Array?v:[];}catch(e){return[];}}
 /* ================= 渲染层（禁止互相调用） ================= */
 function renderSync(){var el=$('syncState'),tx=$('syncText');if(!el)return;
@@ -560,10 +560,10 @@ function fillChannelSelects(){
 /* ================= 详情抽屉 ================= */
 var ST_CLASS={待审:'pending',已审:'reviewed',已发:'published'};
 function setBadge(st){var b=$('dBadge');b.textContent=st;b.className='badge st-'+(ST_CLASS[st]||'pending')+' clickable pop';setTimeout(function(){b.classList.remove('pop');},260);}
-function applyMarks(html,fds){var i,f,s;for(i=0;i<fds.length;i++){f=fds[i];if(f.idx<0)continue;s=esc(f.snippet);if(s&&html.indexOf(s)>-1){html=html.replace(s,'<mark data-fid="'+i+'" class="'+(f.sev==='red'?'lv-red':'')+'">'+s+'</mark>');}}return html;}
+function applyMarks(html,fds){var i,f,s;for(i=0;i<fds.length;i++){f=fds[i];if(f.idx<0)continue;s=esc(f.snippet);if(s&&html.indexOf(s)>-1){html=html.replace(s,'<mark data-fid="'+i+'" class="'+((f.severity||f.sev)==='red'?'lv-red':'')+'">'+s+'</mark>');}}return html;}
 function renderFindings(){
   var f=state.findings,h='',i,red=0,yel=0;
-  for(i=0;i<f.length;i++){if(f[i].sev==='red')red++;else yel++;}
+  for(i=0;i<f.length;i++){if((f[i].severity||f[i].sev)==='red')red++;else yel++;}
   $('dDetectSummary').textContent=f.length?('红 '+red+' · 黄 '+yel):'未发现问题';
   if(!f.length){$('dFindings').innerHTML='<div class="meta" style="padding:6px 2px">三条规则均未命中，可以过审。</div>';return;}
   for(i=0;i<f.length;i++){
@@ -582,7 +582,7 @@ function updateStateButtons(){var a=state.curArt;if(!a)return;
   $('btnPublished').disabled=a.state==='已发';
   $('btnBackPending').disabled=a.state==='待审';}
 function runDetect(){var a=state.curArt;if(!a)return Promise.resolve();
-  return Store.detect(a.id).then(function(f){if(state.curArt&&state.curArt.id===a.id){state.findings=f;$('dPreview').innerHTML=applyMarks(renderMarkdown(a.content),f);renderFindings();}}).catch(function(e){toast('检测失败：'+e.message,true);});}
+  return Store.detect(a.id).then(function(f){if(state.curArt&&String(state.curArt.id)===String(a.id)){state.findings=f;$('dPreview').innerHTML=applyMarks(renderMarkdown(a.content),f);renderFindings();}}).catch(function(e){toast('检测失败：'+e.message,true);});}
 function openArt(id){var a=artById(id);if(!a)return;state.curArt=a;
   state.findings=[];
   $('dTitle').textContent=a.title;
