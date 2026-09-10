@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node --experimental-sqlite server.js",
-    "test": "node --experimental-sqlite --test tests/"
+    "test": "node --experimental-sqlite --test"
   },
   "engines": {
     "node": ">=22.5"

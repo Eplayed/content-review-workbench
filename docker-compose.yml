@@ -6,4 +6,9 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
+    environment:
+      # 公网部署请打开下面两行，并改成你自己的密码
+      # - APP_PASSWORD=change-me
+      # - AUTH_TOKEN=
+      - TZ=Asia/Shanghai
     restart: unless-stopped

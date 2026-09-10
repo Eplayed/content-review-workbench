@@ -3,12 +3,16 @@
 const path = require('path');
 const express = require('express');
 const routes = require('./src/routes');
+const { createAuthMiddleware } = require('./src/auth');
+const { currentVersion } = require('./src/migrations');
+const { db, DATA_DIR } = require('./src/db');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '2mb' }));
+app.use(createAuthMiddleware());
 app.use('/api', routes);
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -24,5 +28,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
+  const guarded = !!(process.env.APP_PASSWORD || process.env.AUTH_TOKEN);
   console.log('AI 内容审稿工作台已启动：http://localhost:' + PORT);
+  console.log('  · 数据目录 ' + DATA_DIR + '（迁移版本 ' + currentVersion(db) + '）');
+  console.log('  · 访问鉴权 ' + (guarded ? '已启用' : '未启用（建议公网部署时设置 APP_PASSWORD）'));
+  console.log('  · AI 供应商 ' + (process.env.AI_PROVIDER || 'openai（OpenAI 兼容接口）'));
 });
