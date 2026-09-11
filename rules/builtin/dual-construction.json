@@ -1,0 +1,17 @@
+{
+  "id": "dual-construction",
+  "title": "对举句式",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「不仅…而且」「有的人…有的人」式对举反复出现",
+  "patterns": [
+    "不仅[^。！？\\n]{0,18}(而且|更是|还)",
+    "有的人[^。！？\\n]{0,18}有的人"
+  ],
+  "escalate": {
+    "minHits": 3,
+    "title": "对举句式过多",
+    "severity": "red",
+    "message": "对举句式出现 {count} 次，节奏单调，建议打散。"
+  }
+}

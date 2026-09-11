@@ -1,0 +1,19 @@
+{
+  "id": "textbook-heading",
+  "title": "教科书式小标题",
+  "type": "heading",
+  "severity": "yellow",
+  "description": "小标题以「掌握/理解/厘清」等教学口吻开头且不含冒号信息",
+  "prefixes": [
+    "厘清",
+    "掌握",
+    "理解",
+    "学会",
+    "认识",
+    "解析",
+    "探究",
+    "探讨",
+    "揭示"
+  ],
+  "requireNoColon": true
+}

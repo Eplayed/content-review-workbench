@@ -1,0 +1,10 @@
+{
+  "id": "bait-question",
+  "title": "设问式开场",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「你知道吗」「你有没有想过」等标题党设问",
+  "patterns": [
+    "(你知道吗|你有没有想过|你有没有发现|你是否想过)"
+  ]
+}

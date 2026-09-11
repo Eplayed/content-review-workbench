@@ -1,0 +1,16 @@
+{
+  "id": "empty-effect",
+  "title": "空泛效果表述",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「大幅提升」「显著增长」等无数据的成效描述",
+  "patterns": [
+    "(大幅|显著|极大|飞速|明显)(提升|增长|提高|改善|降低)"
+  ],
+  "escalate": {
+    "minHits": 2,
+    "title": "空泛效果表述",
+    "severity": "red",
+    "message": "无数据成效描述出现 {count} 处，建议补具体数字。"
+  }
+}

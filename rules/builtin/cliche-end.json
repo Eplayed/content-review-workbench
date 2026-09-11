@@ -1,0 +1,20 @@
+{
+  "id": "cliche-end",
+  "title": "套路结尾",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「让我们一起」「希望本文」等空泛收尾",
+  "patterns": [
+    "让我们一起",
+    "希望本文",
+    "愿你我",
+    "说到底",
+    "归根结底"
+  ],
+  "escalate": {
+    "minHits": 3,
+    "title": "套路结尾堆叠",
+    "severity": "red",
+    "message": "空泛收尾出现 {count} 处，建议改成具体行动或结论。"
+  }
+}

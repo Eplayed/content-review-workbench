@@ -1,0 +1,16 @@
+{
+  "id": "absolute-claim",
+  "title": "绝对化表述",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「100%」「一定能」「彻底解决」等绝对化承诺，有合规风险",
+  "patterns": [
+    "(100%|一定能|必然会|彻底解决|永远有效|包治)"
+  ],
+  "escalate": {
+    "minHits": 2,
+    "title": "绝对化表述重复",
+    "severity": "red",
+    "message": "绝对化表述出现 {count} 处，建议改为有条件、有前提的说法（合规风险）。"
+  }
+}

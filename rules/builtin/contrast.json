@@ -1,0 +1,18 @@
+{
+  "id": "contrast",
+  "title": "对比修辞",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「不是…而是」式对比句型，AI 高频特征；单处黄标，两处以上红标提示改写",
+  "patterns": [
+    "不是[^。！？\\n]{1,25}(而是|，是)",
+    "不再[^。！？\\n]{1,25}(而是|，是)",
+    "与其说[^。！？\\n]{1,30}不如说"
+  ],
+  "escalate": {
+    "minHits": 2,
+    "title": "对比修辞滥用",
+    "severity": "red",
+    "message": "全文命中 {count} 处「不是…而是」式表达，AI 味过重，建议改写大半。"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "jargon-stack",
+  "title": "行业黑话堆砌",
+  "type": "regex",
+  "severity": "red",
+  "description": "赋能/闭环/生态/抓手等空转词汇堆积，信息量低",
+  "patterns": [
+    "(赋能|抓手|闭环|生态位|颠覆|极致|一站式|全方位|底层逻辑|降维打击|颗粒度|组合拳)"
+  ],
+  "escalate": {
+    "minHits": 3,
+    "title": "行业黑话堆砌",
+    "severity": "red",
+    "message": "黑话出现 {count} 处，建议换成具体动作与数字。"
+  }
+}

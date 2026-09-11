@@ -1,0 +1,16 @@
+{
+  "id": "hedge-word",
+  "title": "模糊限定词",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「在一定程度上」「某种意义上」等含糊限定",
+  "patterns": [
+    "(在一定程度上|某种意义上|某种程度上|相对而言)"
+  ],
+  "escalate": {
+    "minHits": 2,
+    "title": "模糊限定词重复",
+    "severity": "red",
+    "message": "含糊限定出现 {count} 次，建议直接给判断。"
+  }
+}

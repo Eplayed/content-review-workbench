@@ -1,0 +1,16 @@
+{
+  "id": "vague-subject",
+  "title": "模糊主体",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「很多人」「一些专家」等无来源引用",
+  "patterns": [
+    "(很多人|大多数人|不少人|一些专家|业内认为)"
+  ],
+  "escalate": {
+    "minHits": 3,
+    "title": "模糊主体过多",
+    "severity": "red",
+    "message": "无来源主体出现 {count} 处，建议指名道姓或标注出处。"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "note-cliche",
+  "title": "提示句式重复",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「需要注意的是」类提示句式反复出现",
+  "patterns": [
+    "(需要注意的是|值得一提的是|不容忽视的是|需要指出的是)"
+  ],
+  "escalate": {
+    "minHits": 2,
+    "title": "提示句式重复",
+    "severity": "red",
+    "message": "提示句式出现 {count} 次，建议只保留一次。"
+  }
+}

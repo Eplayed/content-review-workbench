@@ -1,0 +1,16 @@
+{
+  "id": "vague-inference",
+  "title": "泛化推断",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「不难发现」「由此可见」等无主体推断",
+  "patterns": [
+    "(我们不难发现|不难看出|不难发现|由此可见|可以看出)"
+  ],
+  "escalate": {
+    "minHits": 2,
+    "title": "泛化推断重复",
+    "severity": "red",
+    "message": "无主体推断出现 {count} 次，建议给出具体依据。"
+  }
+}

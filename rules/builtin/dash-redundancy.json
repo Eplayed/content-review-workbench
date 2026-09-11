@@ -1,0 +1,10 @@
+{
+  "id": "dash-redundancy",
+  "title": "破折号冗余解释",
+  "type": "regex",
+  "severity": "yellow",
+  "description": "「——也就是」式同义重复解释",
+  "patterns": [
+    "——\\s*(也就是|或者说|换句话说|即)"
+  ]
+}
