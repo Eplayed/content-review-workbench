@@ -5,14 +5,18 @@
  * - 素材/文章删除为软删除（可恢复）
  * - API key 只存 settings 表，永不返回给前端、不打进日志 */
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { db, now, today } = require('./db');
-const { detectAiStyle } = require('./detector');
+const { detectAiStyle, clearRuleCache } = require('./detector');
 const { parseMaterialsCsv } = require('./csv');
 const { buildBackup, restoreBackup } = require('./backup');
-const { buildWechatHtml } = require('./md2html');
+const ai = require('./ai');
+const exporters = require('./exporters');
+const rulesEngine = require('./rules');
 
 const CHECKLIST_ITEMS = ['事实核查', '数字校验', 'AI 标注就位', '人工增量'];
-const CHANNELS = ['公众号', '头条', '小红书'];
+const DEFAULT_CHANNELS = ['公众号', '头条', '小红书'];
 const router = express.Router();
 
 /* ---------- 工具 ---------- */
@@ -26,6 +30,17 @@ function setSetting(key, val) {
 function parseCl(s) { try { const v = JSON.parse(s || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
 function aiConfig() {
   try { return JSON.parse(getSetting('ai', '{}') || '{}'); } catch (e) { return {}; }
+}
+function getSystemPrompt() { return getSetting('prompt_system', '') || ai.DEFAULT_SYSTEM; }
+function channelsList() {
+  try {
+    const v = JSON.parse(getSetting('channels', '[]') || '[]');
+    if (Array.isArray(v) && v.length && v.every((x) => typeof x === 'string' && x.trim())) return v;
+  } catch (e) { /* fallthrough */ }
+  return DEFAULT_CHANNELS;
+}
+function detectorDisabled() {
+  try { const d = JSON.parse(getSetting('detector_disabled', '[]') || '[]'); return Array.isArray(d) ? d : []; } catch (e) { return []; }
 }
 function rowArt(r) {
   return { id: r.id, title: r.title, content_md: r.content_md, channel: r.channel, review_state: r.review_state, checklist: r.checklist, created_at: r.created_at, updated_at: r.updated_at, published_at: r.published_at };
@@ -41,9 +56,14 @@ router.get('/bootstrap', (req, res) => {
   const arts = db.prepare('SELECT * FROM articles WHERE deleted=0 ORDER BY created_at DESC, id DESC').all().map(rowArt);
   const mx = db.prepare('SELECT * FROM metrics ORDER BY recorded_at DESC, id DESC').all().map(rowMx);
   const c = aiConfig();
-  let disabled = [];
-  try { disabled = JSON.parse(getSetting('detector_disabled', '[]') || '[]'); } catch (e) { disabled = []; }
-  res.json({ mats, arts, mx, ai: { base: c.base || '', model: c.model || '', configured: !!(c.base && c.model && c.key) }, options: CHANNELS, checklistItems: CHECKLIST_ITEMS, detector: Array.isArray(disabled) ? disabled : [] });
+  res.json({
+    mats, arts, mx,
+    ai: { base: c.base || '', model: c.model || '', provider: ai.resolveProvider(c, process.env), configured: !!(c.base && c.model && c.key) },
+    options: channelsList(),
+    checklistItems: CHECKLIST_ITEMS,
+    detector: detectorDisabled(),
+    rules: rulesEngine.loadRulesCached().map((r) => ({ id: r.id, title: r.title, source: r.source }))
+  });
 });
 
 /* ---------- 素材 ---------- */
@@ -98,7 +118,7 @@ router.get('/articles/:id', (req, res) => {
 router.post('/articles', (req, res) => {
   const { title, content_md, channel, material_id } = req.body || {};
   if (!title || !content_md) return res.status(400).json({ error: '标题和正文必填' });
-  if (channel && !CHANNELS.includes(channel)) return res.status(400).json({ error: '渠道必须是：' + CHANNELS.join('/') });
+  if (channel && !channelsList().includes(channel)) return res.status(400).json({ error: '渠道必须是：' + channelsList().join('/') });
   const info = db.prepare(`INSERT INTO articles(title,content_md,material_id,channel,review_state,checklist,created_at,updated_at)
     VALUES(?,?,?,?,'pending','[]',?,?)`).run(String(title), String(content_md), material_id || null, channel || '', today(), now());
   const row = db.prepare('SELECT * FROM articles WHERE id=?').get(info.lastInsertRowid);
@@ -117,7 +137,7 @@ router.patch('/articles/:id', (req, res) => {
     published_at: row.published_at
   };
   if (!next.title || !next.content_md) return res.status(400).json({ error: '标题和正文不能为空' });
-  if (b.channel != null && next.channel && !CHANNELS.includes(next.channel)) return res.status(400).json({ error: '渠道必须是：' + CHANNELS.join('/') });
+  if (b.channel != null && next.channel && !channelsList().includes(next.channel)) return res.status(400).json({ error: '渠道必须是：' + channelsList().join('/') });
   if (!['pending', 'reviewed', 'published'].includes(next.review_state)) return res.status(400).json({ error: '非法的审稿状态' });
 
   if (b.review_state && b.review_state !== row.review_state) {
@@ -151,11 +171,12 @@ router.get('/articles/:id/detect', (req, res) => {
 router.get('/articles/:id/export', (req, res) => {
   const row = db.prepare('SELECT * FROM articles WHERE id=? AND deleted=0').get(req.params.id);
   if (!row) return res.status(404).json({ error: '文章不存在' });
-  const html = buildWechatHtml(row.title, row.content_md);
-  db.prepare('UPDATE articles SET content_html=?,updated_at=? WHERE id=?').run(html, now(), row.id);
-  res.set('Content-Type', 'text/html; charset=utf-8');
-  res.set('Content-Disposition', 'attachment; filename="article-' + row.id + '.html"');
-  res.send(html);
+  const format = exporters.resolveFormat(row.channel, req.query.format);
+  const out = exporters.render(format, row.title, row.content_md);
+  if (out.inlineStyle) db.prepare('UPDATE articles SET content_html=?,updated_at=? WHERE id=?').run(out.body, now(), row.id);
+  res.set('Content-Type', out.contentType);
+  res.set('Content-Disposition', 'attachment; filename="article-' + row.id + '.' + out.ext + '"');
+  res.send(out.body);
 });
 
 /* ---------- 数据回填 ---------- */
@@ -184,81 +205,110 @@ router.delete('/metrics/:id', (req, res) => {
 /* ---------- 设置（AI 接入 / 检测规则开关） ---------- */
 router.get('/settings/ai', (req, res) => {
   const c = aiConfig();
-  res.json({ base: c.base || '', model: c.model || '', configured: !!(c.base && c.model && c.key) });
+  res.json({ base: c.base || '', model: c.model || '', provider: ai.resolveProvider(c, process.env), configured: !!(c.base && c.model && c.key) });
 });
 router.put('/settings/ai', (req, res) => {
   const b = req.body || {};
   const old = aiConfig();
+  const provider = b.provider === 'fake' ? 'fake' : (b.provider === 'openai' ? 'openai' : (old.provider || 'openai'));
   const next = {
+    provider,
     base: String(b.base != null ? b.base : (old.base || '')).trim().replace(/\/+$/, ''),
     model: String(b.model != null ? b.model : (old.model || '')).trim(),
     key: String(b.key != null ? b.key : (old.key || '')).trim()
   };
   setSetting('ai', JSON.stringify(next));
-  res.json({ base: next.base, model: next.model, configured: !!(next.base && next.model && next.key) });
+  res.json({ provider: next.provider, base: next.base, model: next.model, configured: !!(next.base && next.model && next.key) });
 });
 router.post('/settings/ai/test', async (req, res) => {
-  const c = aiConfig();
-  if (!(c.base && c.model && c.key)) return res.status(400).json({ error: '请先保存完整的 AI 配置' });
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
-  try {
-    const r = await fetch(c.base.replace(/\/+$/, '') + '/models', { headers: { Authorization: 'Bearer ' + c.key }, signal: ctrl.signal });
-    clearTimeout(timer);
-    if (r.ok) return res.json({ ok: true });
-    return res.json({ ok: false, error: 'HTTP ' + r.status });
-  } catch (e) {
-    clearTimeout(timer);
-    return res.json({ ok: false, error: e.name === 'AbortError' ? '连接超时（15s）' : '连接失败：网络异常或地址不可达' });
+  const r = await ai.testConnection({ ai: aiConfig(), env: process.env });
+  res.json(r);
+});
+router.get('/settings/prompt', (req, res) => {
+  const custom = getSetting('prompt_system', '');
+  res.json({ system: getSystemPrompt(), isDefault: !custom });
+});
+router.put('/settings/prompt', (req, res) => {
+  const s = String((req.body || {}).system || '').trim();
+  if (!s) return res.status(400).json({ error: 'system 提示词不能为空' });
+  if (s.length > 4000) return res.status(400).json({ error: '提示词过长（上限 4000 字符）' });
+  setSetting('prompt_system', s);
+  res.json({ ok: true });
+});
+router.delete('/settings/prompt', (req, res) => {
+  db.prepare('DELETE FROM settings WHERE key=?').run('prompt_system');
+  res.json({ ok: true });
+});
+router.get('/settings/channels', (req, res) => {
+  res.json({ channels: channelsList() });
+});
+router.put('/settings/channels', (req, res) => {
+  const v = req.body && req.body.channels;
+  if (!Array.isArray(v) || !v.length || v.length > 12 || !v.every((x) => typeof x === 'string' && x.trim())) {
+    return res.status(400).json({ error: 'channels 需为 1-12 个非空字符串的数组' });
   }
+  const uniq = Array.from(new Set(v.map((x) => x.trim())));
+  setSetting('channels', JSON.stringify(uniq));
+  res.json({ channels: uniq });
 });
 router.get('/settings/detector', (req, res) => {
-  let d = [];
-  try { d = JSON.parse(getSetting('detector_disabled', '[]') || '[]'); } catch (e) { d = []; }
-  res.json({ disabled: Array.isArray(d) ? d : [] });
+  res.json({ disabled: detectorDisabled() });
 });
 router.put('/settings/detector', (req, res) => {
-  const d = (req.body && Array.isArray(req.body.disabled)) ? req.body.disabled.filter((x) => ['contrast', 'textbook', 'filler'].includes(x)) : [];
+  const ids = rulesEngine.loadRulesCached().map((r) => r.id);
+  const d = (req.body && Array.isArray(req.body.disabled)) ? req.body.disabled.filter((x) => ids.includes(x)) : [];
   setSetting('detector_disabled', JSON.stringify(d));
   res.json({ disabled: d });
 });
 
-/* ---------- AI 生成 ---------- */
-function buildPrompt(m, type, title) {
-  const sys = '你是一位资深新媒体主笔，为「人机协同审稿」产线写初稿。要求：\n1. 中文，Markdown 格式，正文 900-1400 字\n2. 规避 AI 腔：全文「不是…而是」对比句式最多 1 次；禁用首先/其次/综上所述等套话；小标题禁止「掌握/理解/学会」式开头，要带具体信息\n3. 观点具体，给可执行步骤，案例至少 1 个\n4. 文末输出一节「## 发布前检查」，列 3 条事实核对项';
-  const u = '素材：\n' + m.content + '\n\n文章类型：' + (type || '观点') + '\n' + (title ? '选题标题（必须沿用）：' + title : '请自拟一个带信息量的标题（第一行输出 # 标题）');
-  return [{ role: 'system', content: sys }, { role: 'user', content: u }];
-}
+/* ---------- 检测规则（JSON 即规则，可贡献） ---------- */
+router.get('/rules', (req, res) => {
+  const disabled = new Set(detectorDisabled());
+  const rules = rulesEngine.loadRulesCached().map((r) => ({
+    id: r.id, title: r.title, type: r.type, severity: r.severity || 'yellow', source: r.source, enabled: !disabled.has(r.id)
+  }));
+  res.json({ rules });
+});
+router.post('/rules', (req, res) => {
+  try {
+    const rule = req.body && req.body.rule ? req.body.rule : req.body;
+    const valid = rulesEngine.validateRule(rule, 'request');
+    const dir = rulesEngine.defaultCustomDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, valid.id + '.json'), JSON.stringify(valid, null, 2), 'utf8');
+    clearRuleCache();
+    res.status(201).json({ ok: true, id: valid.id, source: 'custom' });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+router.delete('/rules/:id', (req, res) => {
+  const id = String(req.params.id || '');
+  if (fs.existsSync(path.join(rulesEngine.defaultBuiltinDir(), id + '.json'))) {
+    return res.status(400).json({ error: '内置规则不可删除：可用同 id 自定义规则覆盖行为' });
+  }
+  const file = path.join(rulesEngine.defaultCustomDir(), id + '.json');
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '自定义规则不存在' });
+  fs.unlinkSync(file);
+  clearRuleCache();
+  res.json({ ok: true });
+});
+
+/* ---------- AI 生成（provider 抽象：openai / fake） ---------- */
 router.post('/generate', async (req, res) => {
   const { material_id, type, title } = req.body || {};
   const m = material_id ? db.prepare('SELECT * FROM materials WHERE id=? AND deleted=0').get(material_id) : null;
   if (!m) return res.status(400).json({ error: '请选择素材' });
   const c = aiConfig();
-  if (!(c.base && c.model && c.key)) return res.status(400).json({ error: '未配置 AI 接口，请先在设置中填写 OpenAI 兼容配置' });
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 120000);
+  const provider = ai.resolveProvider(c, process.env);
+  if (provider !== 'fake' && !(c.base && c.model && c.key)) {
+    return res.status(400).json({ error: '未配置 AI 接口，请先在设置中填写 OpenAI 兼容配置（或选演示模式 provider=fake）' });
+  }
   try {
-    const r = await fetch(c.base.replace(/\/+$/, '') + '/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.key },
-      body: JSON.stringify({ model: c.model, messages: buildPrompt(m, type, title), temperature: 0.7, max_tokens: 2400 }),
-      signal: ctrl.signal
-    });
-    clearTimeout(timer);
-    const j = await r.json().catch(() => null);
-    if (!r.ok) {
-      const msg = j && j.error && j.error.message ? j.error.message : 'HTTP ' + r.status;
-      return res.status(502).json({ error: '生成失败：' + msg });
-    }
-    const c0 = j && j.choices && j.choices[0];
-    if (!c0 || !c0.message || !c0.message.content) return res.status(502).json({ error: '生成失败：接口返回结构异常' });
-    const content = String(c0.message.content);
-    const hm = content.match(/^#\s+(.+)$/m);
-    res.json({ title: title || (hm ? hm[1].trim() : m.title), content });
+    const out = await ai.generateDraft({ ai: c, env: process.env, material: m, type, title, systemPrompt: getSystemPrompt() });
+    res.json({ provider: out.provider, title: out.title, content: out.content });
   } catch (e) {
-    clearTimeout(timer);
-    const msg = e.name === 'AbortError' ? '生成超时（120s）' : '网络异常或地址不可达';
-    return res.status(502).json({ error: '生成失败：' + msg });
+    res.status(e.status || 502).json({ error: e.message });
   }
 });
 
