@@ -27,10 +27,14 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: '服务器内部错误' });
 });
 
-app.listen(PORT, () => {
+module.exports = { app };
+
+if (require.main === module) {
   const guarded = !!(process.env.APP_PASSWORD || process.env.AUTH_TOKEN);
-  console.log('AI 内容审稿工作台已启动：http://localhost:' + PORT);
-  console.log('  · 数据目录 ' + DATA_DIR + '（迁移版本 ' + currentVersion(db) + '）');
-  console.log('  · 访问鉴权 ' + (guarded ? '已启用' : '未启用（建议公网部署时设置 APP_PASSWORD）'));
-  console.log('  · AI 供应商 ' + (process.env.AI_PROVIDER || 'openai（OpenAI 兼容接口）'));
-});
+  app.listen(PORT, () => {
+    console.log('AI 内容审稿工作台已启动：http://localhost:' + PORT);
+    console.log('  · 数据目录 ' + DATA_DIR + '（迁移版本 ' + currentVersion(db) + '）');
+    console.log('  · 访问鉴权 ' + (guarded ? '已启用' : '未启用（建议公网部署时设置 APP_PASSWORD）'));
+    console.log('  · AI 供应商 ' + (process.env.AI_PROVIDER || 'openai（OpenAI 兼容接口）'));
+  });
+}
