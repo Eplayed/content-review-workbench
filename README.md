@@ -2,6 +2,11 @@
 
 > AI 负责写，你负责审——带人工审稿闭环的轻量自媒体内容产线。
 
+[![CI](https://github.com/Eplayed/content-review-workbench/actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.5-green)](package.json)
+[![English](https://img.shields.io/badge/docs-English-blue)](README.en.md)
+
 市面上的同类工具分两类：一类在卷「一键分发 20+ 平台」的全自动矩阵（踩平台红线），另一类是纯生成流水线（没有审稿、没有复盘）。本产品反其道而行：**把「人机协同审稿闭环」做成一等公民**，符合平台 AI 内容整顿后的合规趋势。
 
 ## 定位
@@ -16,22 +21,23 @@
 
 ## 核心特性
 
-- **三态审稿流**：待审（pending）→ 已审（reviewed）→ 已发（published），全勾 checklist 才能过审
-- **AI 腔检测**：对比修辞滥用、教科书式小标题、车轱辘词密度等规则化检测，红黄标出、一键定位（纯函数实现，带单元测试）；三条规则可独立开关
-- **素材库**：粘贴文本 / CSV 批量导入（支持带表头与位置两种格式，引号内逗号换行合法），入库即用
-- **AI 生成**：OpenAI 兼容接口直连（baseUrl / model / apiKey 可配置），预留 Dify workflow 适配器
-- **排版导出**：Markdown → 公众号内联样式 HTML
-- **数据回填与周报**：阅读/点赞/收藏/分享/净增粉丝多次回填，按周聚合产量与中位数表现，周报可导出为独立 HTML
-- **备份/恢复**：一键导出全量 JSON 备份（**不含 API Key**），恢复时素材/文章外键自动重映射
+- **三态审稿流**：待审 → 已审 → 已发，全勾审稿清单才能过审（服务端强制门禁，前端只是入口）
+- **可扩展的 AI 腔检测引擎**：规则即 JSON（`rules/builtin/*.json`，内置 15+ 条：对比修辞、教科书标题、车轱辘词、绝对化表述、行业黑话……），**写一条新规则 ≈ 10 分钟，不改代码**——见 [docs/RULES.md](docs/RULES.md)；红黄分级、一键定位、按规则开关
+- **素材库**：粘贴文本 / CSV 批量导入（带表头与位置两种格式）
+- **AI 供应商可插拔**：OpenAI 兼容接口（含 Ollama 本地模型）；`AI_PROVIDER=fake` 演示模式零成本体验；写作人格（system 提示词）在设置页可编辑、可恢复默认
+- **导出器插件化**：公众号内联样式 / 通用网页 / Markdown 原文，按渠道自动选择（见 `src/exporters/`）
+- **数据回填与周报**：多次回填表现数据，按周聚合产量与中位数，周报一键导出 HTML
+- **备份/恢复**：全量 JSON（**永不包含 API Key**），恢复时外键自动重映射
+- **安全与运维**：`APP_PASSWORD`（浏览器 Basic 登录）/ `AUTH_TOKEN`（脚本 Bearer）；数据库版本化迁移，**升级不丢数据**；暗色主题；PWA 可安装到手机桌面
 
 ## 路线图
 
-- [x] **M0 Web 工作台原型**：单文件 HTML 在线版（资料库数据表存储 + 双向同步），见 `prototype/index.html`
-- [ ] **M1 审稿闭环**：素材导入、AI 生成、三态流转、AI 腔检测、审稿 checklist
-- [ ] **M2 排版与回填**：公众号 HTML 导出、发布登记、数据回填、简版周报
-- [ ] **M3 配置与打磨**：AI 设置页、检测规则开关、JSON 备份/恢复
+- [x] **v0.1.0 可用**：M1–M3 全部功能落地
+- [x] **v0.2.0 可信**：鉴权、迁移、CI、社区文件、规则引擎 JSON 化、提示词模板、导出器插件化、fake provider、集成测试、暗色主题、PWA、双语文档
+- [ ] **v0.3.0 可扩展**：外部规则包、多模型对比生成、docx/pdf 素材解析、导出模板可视化编辑
+- [ ] **v0.4.0 协作**：多用户角色、审稿评论与修订历史、Webhook
 
-> **在线原型（M0）**：素材库 / 写作台（AI 生成 + 手动粘贴）/ 审稿台（三态流转 + AI 腔检测 + checklist）/ 复盘台（数据回填 + 周报）四大模块已可在线使用；`prototype/index.html` 为同源单文件实现，可作为 M1–M3 的交互参考。
+完整路线与负空间（明确不做的事）见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 技术栈
 
@@ -47,13 +53,18 @@ npm start
 
 # 方式二：Docker（推荐）
 docker compose up -d
-# 打开 http://localhost:3000
 ```
 
-- 数据存在本机 `data/workbench.db`（SQLite 单文件），Docker 部署请挂载 `data` 目录；端口用 `PORT` 环境变量改
-- AI 生成：设置抽屉里填 OpenAI 兼容接口（baseUrl / model / apiKey），Key 只存服务端 settings 表，不返回前端、不打日志
+- 数据存于 `data/workbench.db`（SQLite 单文件），Docker 部署挂载 `data` 目录；`PORT` 改端口
+- **公网部署**：设置 `APP_PASSWORD=你的密码`（浏览器弹原生登录框）和/或 `AUTH_TOKEN=令牌`（脚本调用）；`.env.example` 有全部可配项
+- **本地模型**：Ollama 起服务后，baseUrl 填 `http://127.0.0.1:11434/v1`，模型填如 `qwen2.5:7b`
+- **演示模式**：设置里 provider 选 fake（或 `AI_PROVIDER=fake`），生成固定示例稿，零 API 成本
 - 首次使用：设置 → 载入示例数据，即可体验完整审稿闭环
-- 单元测试：`npm test`（AI 腔检测三条规则 + 公众号导出）
+- 测试：`npm test`（49 个用例：规则引擎 / 迁移 / 鉴权 / 集成链路 / 导出 / 备份恢复 / CSV）
+
+## 贡献
+
+最容易的入门方式是**写一条检测规则**（纯 JSON + 用例）：见 [docs/RULES.md](docs/RULES.md)。其余见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 合规声明
 

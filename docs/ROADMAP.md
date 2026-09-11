@@ -8,7 +8,7 @@
 | 版本 | 主题 | 关键内容 | 状态 |
 |---|---|---|---|
 | v0.1.0 | 可用 | M1–M3 全部功能：素材/三态审稿/AI 腔检测/公众号导出/回填/周报 | ✅ 已发布 |
-| **v0.2.0** | **可信** | 访问鉴权、数据库迁移、CI、社区文件、**规则引擎 JSON 化**、提示词模板、导出器插件化、集成测试、暗色主题、PWA、双语文档 | 🚧 本轮交付 |
+| **v0.2.0** | **可信** | 访问鉴权、数据库迁移、CI、社区文件、**规则引擎 JSON 化**、提示词模板、导出器插件化、集成测试、暗色主题、PWA、双语文档 | ✅ 已发布 |
 | v0.3.0 | 可扩展 | 外部规则包（npm/URL 安装）、多模型对比生成、批量导入素材解析器（docx/pdf）、导出模板可视化编辑 | 待排期 |
 | v0.4.0 | 协作 | 多用户与角色（只读/审稿/管理）、审稿评论与修订历史、Webhook 通知 | 待排期 |
 | v1.0.0 | 稳定 | API 冻结与兼容承诺、i18n（中/英界面）、插件协议定稿、文档站 | 待排期 |
@@ -16,28 +16,28 @@
 ## 本轮（v0.2.0）交付清单
 
 ### A. 安全与数据生命线（P0）
-- [ ] A1 访问鉴权：`APP_PASSWORD`（Basic，浏览器原生弹窗）/ `AUTH_TOKEN`（Bearer，供脚本）；`/api/health` 放行；未配置时行为与现在一致
-- [ ] A2 数据库迁移机制：`_migrations` 表 + 版本化迁移；老库自动基线对齐（不丢数据）；迁移失败回滚
-- [ ] A3 查询索引：articles(review_state,deleted,created_at)、metrics(article_id,recorded_at)、materials(deleted,created_at)
+- [x] A1 访问鉴权：`APP_PASSWORD`（Basic，浏览器原生弹窗）/ `AUTH_TOKEN`（Bearer，供脚本）；`/api/health` 放行；未配置时行为与现在一致
+- [x] A2 数据库迁移机制：`_migrations` 表 + 版本化迁移；老库自动基线对齐（不丢数据）；迁移失败回滚
+- [x] A3 查询索引：articles(review_state,deleted,created_at)、metrics(article_id,recorded_at)、materials(deleted,created_at)
 
 ### B. 开源工程线（P0/P1）
-- [ ] B1 GitHub Actions CI：push/PR 跑全量测试；main 分支构建并推送 GHCR 镜像
-- [ ] B2 Dependabot：npm / docker / github-actions 三类依赖每周检查
-- [ ] B3 社区标准文件：CONTRIBUTING、CODE_OF_CONDUCT、SECURITY、CODEOWNERS、issue 模板（bug/feature）、PR 模板
-- [ ] B4 CHANGELOG + 语义化版本（0.2.0）+ Git tag + GitHub Release
-- [ ] B5 依赖可复现：`package-lock.json` 入库，Dockerfile 改用 `npm ci`
+- [x] B1 GitHub Actions CI：push/PR 跑全量测试；main 分支构建并推送 GHCR 镜像
+- [x] B2 Dependabot：npm / docker / github-actions 三类依赖每周检查
+- [x] B3 社区标准文件：CONTRIBUTING、CODE_OF_CONDUCT、SECURITY、CODEOWNERS、issue 模板（bug/feature）、PR 模板
+- [x] B4 CHANGELOG + 语义化版本（0.2.0）+ Git tag + GitHub Release
+- [x] B5 依赖可复现：`package-lock.json` 入库，Dockerfile 改用 `npm ci`
 
 ### C. 可扩展性（P1，核心竞争力）
-- [ ] C1 **检测规则引擎 JSON 化**：内置规则独立成 `rules/builtin/*.json`；支持 `DATA_DIR/rules/*.json` 自定义规则（同 id 覆盖内置）；规则 API（增删查）；`docs/RULES.md` 把「写一条规则」的门槛降到 10 分钟
-- [ ] C2 提示词模板可配置：系统提示词存 settings，设置页可编辑、可恢复默认（不同赛道需要不同写作人格）
-- [ ] C3 渠道与导出器可插拔：渠道列表可配置；导出器注册表（wechat / generic / markdown），按文章渠道自动选择
-- [ ] C4 fake AI provider：`AI_PROVIDER=fake` 产确定性草稿，CI 与集成测试不花一分钱、不依赖外网
+- [x] C1 **检测规则引擎 JSON 化**：内置规则独立成 `rules/builtin/*.json`；支持 `DATA_DIR/rules/*.json` 自定义规则（同 id 覆盖内置）；规则 API（增删查）；`docs/RULES.md` 把「写一条规则」的门槛降到 10 分钟
+- [x] C2 提示词模板可配置：系统提示词存 settings，设置页可编辑、可恢复默认（不同赛道需要不同写作人格）
+- [x] C3 渠道与导出器可插拔：渠道列表可配置；导出器注册表（wechat / generic / markdown），按文章渠道自动选择
+- [x] C4 fake AI provider：`AI_PROVIDER=fake` 产确定性草稿，CI 与集成测试不花一分钱、不依赖外网
 
 ### D. 质量与体验（P1）
-- [ ] D1 集成测试：拉起真实服务跑完整链路（seed → 三态门禁 → 检测 → fake 生成 → 导出 → 备份/恢复）
-- [ ] D2 暗色主题：CSS 变量化 + `prefers-color-scheme` 自动切换
-- [ ] D3 PWA：manifest + 图标 + 主题色，手机可「添加到主屏幕」
-- [ ] D4 文档：README 补充鉴权/Ollama/规则/部署按钮 + 截图；英文 README（README.en.md）
+- [x] D1 集成测试：拉起真实服务跑完整链路（seed → 三态门禁 → 检测 → fake 生成 → 导出 → 备份/恢复）
+- [x] D2 暗色主题：CSS 变量化 + `prefers-color-scheme` 自动切换
+- [x] D3 PWA：manifest + 图标 + 主题色，手机可「添加到主屏幕」
+- [x] D4 文档：README 补充鉴权/Ollama/规则/部署按钮 + 截图；英文 README（README.en.md）
 
 ### E. 明确不做（负空间）
 - ❌ 多租户 SaaS、账号体系：单用户自托管是定位，不是缺陷（多用户放到 v0.4+）
