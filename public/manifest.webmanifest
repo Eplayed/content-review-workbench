@@ -1,0 +1,13 @@
+{
+  "name": "AI 内容审稿工作台",
+  "short_name": "审稿台",
+  "description": "AI 生成初稿、人工三态审稿、AI 腔检测、导出与回填的自托管轻量内容产线",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#4f46e5",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
